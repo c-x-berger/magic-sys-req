@@ -1,4 +1,5 @@
 use irc::client::prelude::{Command, IrcClient, Message};
+use regex::Regex;
 
 pub struct IrcContext<'a> {
     message: Message,
@@ -52,31 +53,35 @@ impl<'a> IrcContext<'a> {
     }
 }
 
-pub struct BotCommand {
+pub struct BotCommand<'a> {
     aliases: Vec<String>,
 
-    callback: fn(&IrcContext),
+    callback: Box<dyn FnMut(&IrcContext) + 'a>,
 }
 
-impl BotCommand {
-    pub fn new(aliases: Vec<String>, callback: fn(&IrcContext)) -> Self {
-        Self { aliases, callback }
+impl<'a> BotCommand<'a> {
+    pub fn new<CB: FnMut(&IrcContext) + 'a>(aliases: Vec<String>, callback: CB) -> Self {
+        Self {
+            aliases,
+            callback: Box::new(callback),
+        }
     }
 
     pub fn is_call(&self, unprefixed: &str) -> (bool, Option<&str>) {
-        for prefix in &self.aliases {
-            if unprefixed.starts_with(prefix) {
-                return (true, Some(prefix));
+        for alias in &self.aliases {
+            let re = Regex::new(alias).unwrap();
+            if re.is_match(unprefixed) {
+                return (true, Some(alias));
             }
         }
         (false, None)
     }
 
-    pub fn on_call(&self, ctx: &IrcContext) {
+    pub fn on_call(&mut self, ctx: &IrcContext) {
         (self.callback)(ctx)
     }
 
-    pub fn call_if(&self, unprefixed: &str, ctx: &mut IrcContext) {
+    pub fn call_if(&mut self, unprefixed: &str, ctx: &mut IrcContext) {
         if let (true, Some(cmd)) = self.is_call(unprefixed) {
             ctx.command = Some(cmd.to_string());
             ctx.noprefix = Some(unprefixed.to_string());
