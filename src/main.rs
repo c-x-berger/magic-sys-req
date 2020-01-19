@@ -6,8 +6,10 @@ use std::{
 use irc::client::prelude::*;
 use rand::seq::SliceRandom;
 
+mod bot;
 mod command;
 
+use bot::roll_ndn;
 use command::{BotCommand, IrcContext};
 
 const PREFIXES: &[&str] = &[":", ",", " "];
@@ -50,6 +52,9 @@ fn main() {
         )
     });
     commands.push(joker);
+
+    let dice = BotCommand::new(vec!["[Rr]oll".to_string()], roll_ndn);
+    commands.push(dice);
 
     let client = IrcClient::new("config.toml").unwrap();
     client.identify().unwrap();
