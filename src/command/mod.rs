@@ -19,8 +19,8 @@ impl<'a> IrcContext<'a> {
         }
     }
 
-    pub fn get_command(&self) -> &Option<String> {
-        &self.command
+    pub fn get_command(&self) -> Option<&String> {
+        self.command.as_ref()
     }
 
     pub fn get_message(&self) -> &Message {
@@ -35,11 +35,15 @@ impl<'a> IrcContext<'a> {
     }
 
     pub fn command_params_str(&self) -> Option<&str> {
-        let cmd = match self.command.as_ref() {
+        let cmd = match self.get_command() {
             Some(cmd) => cmd,
             None => return None,
         };
-        Some(&self.noprefix.as_ref().unwrap()[cmd.len()..])
+        let ret = &self.noprefix.as_ref().unwrap()[cmd.len()..];
+        match ret.len() {
+            0 => None,
+            _ => Some(ret),
+        }
     }
 
     pub fn command_params(&self) -> Option<Vec<&str>> {
@@ -70,11 +74,12 @@ impl<'a> BotCommand<'a> {
         }
     }
 
-    pub fn is_call(&self, unprefixed: &str) -> (bool, Option<&str>) {
+    pub fn is_call<'b>(&self, unprefixed: &'b str) -> (bool, Option<&'b str>) {
         for alias in &self.aliases {
             let re = Regex::new(alias).unwrap();
-            if re.is_match(unprefixed) {
-                return (true, Some(alias));
+            match re.find(unprefixed) {
+                Some(match_) => return (true, Some(match_.as_str())),
+                None => continue,
             }
         }
         (false, None)
