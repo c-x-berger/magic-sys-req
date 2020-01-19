@@ -33,34 +33,38 @@ fn main() {
     let mut rng = rand::thread_rng();
     let jokes = read_jokes().expect("could not read jokes");
 
-    let mut echo_cmd = BotCommand::new(vec!["echo".to_string(), "repeat".to_string()], |ctx| {
-        ctx.get_client()
-            .send_privmsg(
-                ctx.get_message().response_target().unwrap(),
-                ctx.command_params_str().unwrap(),
-            )
-            .unwrap();
-    });
+    let mut commands: Vec<BotCommand> = Vec::new();
 
-    let mut joker = BotCommand::new(vec!["tell(?: (me|us))? a joke".to_string()], |ctx| {
-        ctx.get_client()
-            .send_privmsg(
-                ctx.get_message().response_target().unwrap(),
-                &jokes.choose(&mut rng).unwrap(),
-            )
-            .unwrap();
+    let echo_cmd = BotCommand::new(vec!["echo".to_string(), "repeat".to_string()], |ctx| {
+        ctx.get_client().send_privmsg(
+            ctx.get_message().response_target().unwrap(),
+            ctx.command_params_str().unwrap(),
+        )
     });
+    commands.push(echo_cmd);
+
+    let joker = BotCommand::new(vec!["tell(?: (me|us))? a joke".to_string()], |ctx| {
+        ctx.get_client().send_privmsg(
+            ctx.get_message().response_target().unwrap(),
+            &jokes.choose(&mut rng).unwrap(),
+        )
+    });
+    commands.push(joker);
 
     let client = IrcClient::new("config.toml").unwrap();
     client.identify().unwrap();
 
     client
         .for_each_incoming(|irc_msg| {
-            if let Command::PRIVMSG(_channel, message) = &irc_msg.command {
+            if let Command::PRIVMSG(_, message) = &irc_msg.command {
                 if let Some(unpre) = without_prefix(&message, &client.current_nickname()) {
                     let mut ctx = IrcContext::new(irc_msg, &client);
-                    joker.call_if(&unpre, &mut ctx);
-                    echo_cmd.call_if(&unpre, &mut ctx);
+                    for cmd in &mut commands {
+                        match cmd.call_if(&unpre, &mut ctx) {
+                            Ok(_) => continue,
+                            Err(_) => println!("encountered error processing {}", unpre),
+                        };
+                    }
                 }
             }
         })

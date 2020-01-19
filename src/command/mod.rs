@@ -1,4 +1,5 @@
 use irc::client::prelude::{Command, IrcClient, Message};
+use irc::error::Result;
 use regex::Regex;
 
 pub struct IrcContext<'a> {
@@ -55,12 +56,14 @@ impl<'a> IrcContext<'a> {
 
 pub struct BotCommand<'a> {
     aliases: Vec<String>,
-
-    callback: Box<dyn FnMut(&IrcContext) + 'a>,
+    callback: Box<dyn FnMut(&IrcContext) -> Result<()> + 'a>,
 }
 
 impl<'a> BotCommand<'a> {
-    pub fn new<CB: FnMut(&IrcContext) + 'a>(aliases: Vec<String>, callback: CB) -> Self {
+    pub fn new<CB: FnMut(&IrcContext) -> Result<()> + 'a>(
+        aliases: Vec<String>,
+        callback: CB,
+    ) -> Self {
         Self {
             aliases,
             callback: Box::new(callback),
@@ -77,15 +80,16 @@ impl<'a> BotCommand<'a> {
         (false, None)
     }
 
-    pub fn on_call(&mut self, ctx: &IrcContext) {
+    pub fn on_call(&mut self, ctx: &IrcContext) -> Result<()> {
         (self.callback)(ctx)
     }
 
-    pub fn call_if(&mut self, unprefixed: &str, ctx: &mut IrcContext) {
+    pub fn call_if(&mut self, unprefixed: &str, ctx: &mut IrcContext) -> Result<()> {
         if let (true, Some(cmd)) = self.is_call(unprefixed) {
             ctx.command = Some(cmd.to_string());
             ctx.noprefix = Some(unprefixed.to_string());
-            self.on_call(ctx);
+            return self.on_call(ctx);
         }
+        Ok(())
     }
 }
