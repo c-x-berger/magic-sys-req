@@ -48,3 +48,16 @@ pub fn roll_ndn(ctx: &IrcContext) -> Result<()> {
         .send_privmsg(ctx.get_message().response_target().unwrap(), send)?;
     Ok(())
 }
+
+pub fn do_action(ctx: &IrcContext) -> Result<()> {
+    let act = match ctx.command_params_str() {
+        Some(act) => act.trim().to_string(),
+        None => {
+            let nick = ctx.get_message().source_nickname().unwrap_or("c-x-berger");
+            format!("slaps {} around a bit with a large trout", nick)
+        }
+    };
+    let dest = ctx.get_message().response_target().unwrap();
+    ctx.get_client().send_action(dest, act)?;
+    Ok(())
+}
