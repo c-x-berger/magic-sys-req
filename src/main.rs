@@ -9,7 +9,6 @@ use rand::seq::SliceRandom;
 mod bot;
 mod command;
 
-use bot::roll_ndn;
 use command::{BotCommand, IrcContext};
 
 const PREFIXES: &[&str] = &[":", ",", " "];
@@ -37,7 +36,7 @@ fn main() {
 
     let mut commands: Vec<BotCommand> = Vec::new();
 
-    let echo_cmd = BotCommand::new(vec!["echo".to_string(), "repeat".to_string()], |ctx| {
+    let echo_cmd = BotCommand::new(vec!["echo ".to_string(), "repeat ".to_string()], |ctx| {
         ctx.get_client().send_privmsg(
             ctx.get_message().response_target().unwrap(),
             ctx.command_params_str().unwrap(),
@@ -53,8 +52,11 @@ fn main() {
     });
     commands.push(joker);
 
-    let dice = BotCommand::new(vec!["[Rr]oll".to_string()], roll_ndn);
+    let dice = BotCommand::new(vec!["[Rr]oll ".to_string()], bot::roll_ndn);
     commands.push(dice);
+
+    let slash_me = BotCommand::new(vec![r"/?me".to_string()], bot::do_action);
+    commands.push(slash_me);
 
     let client = IrcClient::new("config.toml").unwrap();
     client.identify().unwrap();
