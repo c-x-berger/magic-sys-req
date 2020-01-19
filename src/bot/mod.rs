@@ -18,7 +18,10 @@ pub fn roll_ndn(ctx: &IrcContext) -> Result<()> {
         None => "1d6",
     };
     let tokens: Vec<_> = dice_string.split("d").collect();
-    let ndn = (bad_parse_int(tokens[0]), bad_parse_int(tokens[1]));
+    let ndn = (
+        bad_parse_int(tokens.get(0).unwrap_or(&"1")),
+        bad_parse_int(tokens.get(1).unwrap_or(&"6")),
+    );
     ctx.get_client().send_privmsg(
         ctx.get_message().response_target().unwrap(),
         format!("Rolling {}d{}", ndn.0, ndn.1),
