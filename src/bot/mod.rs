@@ -22,10 +22,6 @@ pub fn roll_ndn(ctx: &IrcContext) -> Result<()> {
         bad_parse_int(tokens.get(0).unwrap_or(&"1")),
         bad_parse_int(tokens.get(1).unwrap_or(&"6")),
     );
-    ctx.get_client().send_privmsg(
-        ctx.get_message().response_target().unwrap(),
-        format!("Rolling {}d{}", ndn.0, ndn.1),
-    )?;
     // roll
     let mut rng = rand::thread_rng();
     let die = Uniform::from(1..ndn.1 + 1);

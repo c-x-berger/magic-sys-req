@@ -5,8 +5,8 @@ use regex::Regex;
 pub struct IrcContext<'a> {
     message: Message,
     client: &'a IrcClient,
-    command: Option<String>,
-    noprefix: Option<String>,
+    alias_used: Option<String>,
+    invokation: Option<String>,
 }
 
 impl<'a> IrcContext<'a> {
@@ -14,13 +14,13 @@ impl<'a> IrcContext<'a> {
         Self {
             message,
             client,
-            command: None,
-            noprefix: None,
+            alias_used: None,
+            invokation: None,
         }
     }
 
-    pub fn get_command(&self) -> Option<&String> {
-        self.command.as_ref()
+    pub fn get_alias_used(&self) -> Option<&String> {
+        self.alias_used.as_ref()
     }
 
     pub fn get_message(&self) -> &Message {
@@ -35,11 +35,11 @@ impl<'a> IrcContext<'a> {
     }
 
     pub fn command_params_str(&self) -> Option<&str> {
-        let cmd = match self.get_command() {
+        let alias = match self.get_alias_used() {
             Some(cmd) => cmd,
             None => return None,
         };
-        let ret = &self.noprefix.as_ref().unwrap()[cmd.len()..];
+        let ret = &self.invokation.as_ref().unwrap()[alias.len()..];
         match ret.len() {
             0 => None,
             _ => Some(ret),
@@ -74,10 +74,10 @@ impl<'a> BotCommand<'a> {
         }
     }
 
-    pub fn is_call<'b>(&self, unprefixed: &'b str) -> (bool, Option<&'b str>) {
+    pub fn is_call<'b>(&self, invokation: &'b str) -> (bool, Option<&'b str>) {
         for alias in &self.aliases {
             let re = Regex::new(alias).unwrap();
-            match re.find(unprefixed) {
+            match re.find(invokation) {
                 Some(match_) => return (true, Some(match_.as_str())),
                 None => continue,
             }
@@ -89,10 +89,10 @@ impl<'a> BotCommand<'a> {
         (self.callback)(ctx)
     }
 
-    pub fn call_if(&mut self, unprefixed: &str, ctx: &mut IrcContext) -> Result<()> {
-        if let (true, Some(cmd)) = self.is_call(unprefixed) {
-            ctx.command = Some(cmd.to_string());
-            ctx.noprefix = Some(unprefixed.to_string());
+    pub fn call_if(&mut self, invokation: &str, ctx: &mut IrcContext) -> Result<()> {
+        if let (true, Some(alias)) = self.is_call(invokation) {
+            ctx.alias_used = Some(alias.to_string());
+            ctx.invokation = Some(invokation.to_string());
             return self.on_call(ctx);
         }
         Ok(())

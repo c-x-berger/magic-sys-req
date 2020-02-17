@@ -71,18 +71,21 @@ fn process_message() -> impl FnMut(&IrcClient, Message) -> irc::error::Result<()
 
     let dice = BotCommand::new(vec!["[Rr]oll ".to_string()], bot::roll_ndn);
     commands.push(dice);
-    let slash_me = BotCommand::new(vec![r"/?me".to_string()], bot::do_action);
+    let slash_me = BotCommand::new(vec![r"/me".to_string()], bot::do_action);
     commands.push(slash_me);
 
     return move |client: &IrcClient, message: Message| {
         if let Command::PRIVMSG(_, msg_txt) = &message.command {
             if let Some(no_prefix) = without_prefix(&msg_txt, &client.current_nickname()) {
-                // has prefix and is privmsg
                 let mut ctx = IrcContext::new(message, client);
-                for cmd in &mut commands {
-                    match cmd.call_if(&no_prefix, &mut ctx) {
-                        Ok(_) => continue,
-                        Err(_) => eprintln!("error processing message {}", no_prefix),
+                let possible_invokes: Vec<_> = no_prefix.split("and").map(|s| s.trim()).collect();
+                // has prefix and is privmsg
+                for chance in possible_invokes {
+                    for cmd in &mut commands {
+                        match cmd.call_if(&chance, &mut ctx) {
+                            Ok(_) => continue,
+                            Err(_) => eprintln!("error processing message {}", chance),
+                        }
                     }
                 }
             }
