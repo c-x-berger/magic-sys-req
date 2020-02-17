@@ -1,3 +1,4 @@
+use std::fs;
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
@@ -30,21 +31,37 @@ fn read_jokes() -> std::io::Result<Vec<String>> {
     Ok(reader.lines().map(|l| l.expect("what the?")).collect())
 }
 
-fn main() {
-    let mut rng = rand::thread_rng();
+fn main() -> irc::error::Result<()> {
+    let paths = fs::read_dir("./confs").unwrap();
+    let mut reactor = IrcReactor::new()?;
+    for path in paths {
+        let cfg = Config::load(path.unwrap().path()).unwrap();
+        let client = reactor.prepare_client_and_connect(&cfg)?;
+        client.identify()?;
+        reactor.register_client_with_handler(client, process_message());
+    }
+    reactor.run()?;
+    Ok(())
+}
+
+fn process_message() -> impl FnMut(&IrcClient, Message) -> irc::error::Result<()> {
     let jokes = read_jokes().expect("could not read jokes");
 
-    let mut commands: Vec<BotCommand> = Vec::new();
+    let mut commands = Vec::new();
 
-    let echo_cmd = BotCommand::new(vec!["echo ".to_string(), "repeat ".to_string()], |ctx| {
-        ctx.get_client().send_privmsg(
-            ctx.get_message().response_target().unwrap(),
-            ctx.command_params_str().unwrap(),
-        )
-    });
+    let echo_cmd = BotCommand::new(
+        vec!["echo ".to_string(), "repeat ".to_string()],
+        move |ctx| {
+            ctx.get_client().send_privmsg(
+                ctx.get_message().response_target().unwrap(),
+                ctx.command_params_str().unwrap(),
+            )
+        },
+    );
     commands.push(echo_cmd);
 
-    let joker = BotCommand::new(vec!["tell(?: (me|us))? a joke".to_string()], |ctx| {
+    let joker = BotCommand::new(vec!["tell(?: (me|us))? a joke".to_string()], move |ctx| {
+        let mut rng = rand::thread_rng();
         ctx.get_client().send_privmsg(
             ctx.get_message().response_target().unwrap(),
             &jokes.choose(&mut rng).unwrap(),
@@ -54,26 +71,22 @@ fn main() {
 
     let dice = BotCommand::new(vec!["[Rr]oll ".to_string()], bot::roll_ndn);
     commands.push(dice);
-
     let slash_me = BotCommand::new(vec![r"/?me".to_string()], bot::do_action);
     commands.push(slash_me);
 
-    let client = IrcClient::new("config.toml").unwrap();
-    client.identify().unwrap();
-
-    client
-        .for_each_incoming(|irc_msg| {
-            if let Command::PRIVMSG(_, message) = &irc_msg.command {
-                if let Some(unpre) = without_prefix(&message, &client.current_nickname()) {
-                    let mut ctx = IrcContext::new(irc_msg, &client);
-                    for cmd in &mut commands {
-                        match cmd.call_if(&unpre, &mut ctx) {
-                            Ok(_) => continue,
-                            Err(_) => println!("encountered error processing {}", unpre),
-                        };
+    return move |client: &IrcClient, message: Message| {
+        if let Command::PRIVMSG(_, msg_txt) = &message.command {
+            if let Some(no_prefix) = without_prefix(&msg_txt, &client.current_nickname()) {
+                // has prefix and is privmsg
+                let mut ctx = IrcContext::new(message, client);
+                for cmd in &mut commands {
+                    match cmd.call_if(&no_prefix, &mut ctx) {
+                        Ok(_) => continue,
+                        Err(_) => eprintln!("error processing message {}", no_prefix),
                     }
                 }
             }
-        })
-        .unwrap();
+        }
+        Ok(())
+    };
 }

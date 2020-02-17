@@ -35,7 +35,8 @@ pub fn roll_ndn(ctx: &IrcContext) -> Result<()> {
         rolls += 1;
         rolled.push(die.sample(&mut rng));
     }
-    let send = format!(
+    let mut send = format!("Rolling {}d{}. ", ndn.0, ndn.1);
+    send.push_str(&format!(
         "You rolled: {} = {}",
         rolled
             .iter()
@@ -43,7 +44,7 @@ pub fn roll_ndn(ctx: &IrcContext) -> Result<()> {
             .collect::<Vec<_>>()
             .join(" + "),
         rolled.iter().sum::<u32>()
-    );
+    ));
     ctx.get_client()
         .send_privmsg(ctx.get_message().response_target().unwrap(), send)?;
     Ok(())
