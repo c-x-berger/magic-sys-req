@@ -1,5 +1,5 @@
-use std::fs;
 use std::{
+    fs,
     fs::File,
     io::{prelude::*, BufReader},
 };
