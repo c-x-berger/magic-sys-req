@@ -1,5 +1,9 @@
-use irc::client::prelude::{Command, IrcClient, Message};
-use irc::error::Result;
+use std::io;
+
+use irc::{
+    client::prelude::*,
+    error::{IrcError, Result},
+};
 use regex::Regex;
 
 pub struct IrcContext<'a> {
@@ -55,6 +59,20 @@ impl<'a> IrcContext<'a> {
 
     pub fn get_client(&self) -> &IrcClient {
         self.client
+    }
+
+    pub fn send(&self, msg: &str) -> Result<()> {
+        let resp_target = match self.get_message().response_target() {
+            Some(target) => target,
+            None => {
+                return Err(IrcError::Io(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "no real response target",
+                )))
+            }
+        };
+        self.get_client().send_privmsg(resp_target, msg)?;
+        Ok(())
     }
 }
 
