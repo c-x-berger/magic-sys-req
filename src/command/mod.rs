@@ -4,16 +4,15 @@ use irc::{
     client::prelude::*,
     error::{IrcError, Result},
 };
-use regex::Regex;
 
-pub struct IrcContext<'a> {
+pub struct IrcContext<'a, 'b> {
     message: Message,
     client: &'a IrcClient,
-    alias_used: Option<String>,
-    invokation: Option<String>,
+    alias_used: Option<&'b str>,
+    invokation: Option<&'b str>,
 }
 
-impl<'a> IrcContext<'a> {
+impl<'a> IrcContext<'a, '_> {
     pub fn new(message: Message, client: &'a IrcClient) -> Self {
         Self {
             message,
@@ -23,8 +22,8 @@ impl<'a> IrcContext<'a> {
         }
     }
 
-    pub fn get_alias_used(&self) -> Option<&String> {
-        self.alias_used.as_ref()
+    pub fn get_alias_used(&self) -> Option<&str> {
+        self.alias_used
     }
 
     pub fn get_message(&self) -> &Message {
@@ -76,42 +75,17 @@ impl<'a> IrcContext<'a> {
     }
 }
 
-pub struct BotCommand<'a> {
-    aliases: Vec<String>,
-    callback: Box<dyn FnMut(&IrcContext) -> Result<()> + 'a>,
-}
+pub trait BotCommand {
+    // type Call<'a> = (bool, Option<&'a str>);
+    // for some reason static methods make trait objects impossible
+    fn is_call<'a>(&self, invokation: &'a str) -> (bool, Option<&'a str>);
+    fn on_call(&mut self, ctx: &IrcContext) -> Result<()>;
 
-impl<'a> BotCommand<'a> {
-    pub fn new<CB: FnMut(&IrcContext) -> Result<()> + 'a>(
-        aliases: Vec<String>,
-        callback: CB,
-    ) -> Self {
-        Self {
-            aliases,
-            callback: Box::new(callback),
-        }
-    }
-
-    pub fn is_call<'b>(&self, invokation: &'b str) -> (bool, Option<&'b str>) {
-        for alias in &self.aliases {
-            let re = Regex::new(alias).unwrap();
-            match re.find(invokation) {
-                Some(match_) => return (true, Some(match_.as_str())),
-                None => continue,
-            }
-        }
-        (false, None)
-    }
-
-    pub fn on_call(&mut self, ctx: &IrcContext) -> Result<()> {
-        (self.callback)(ctx)
-    }
-
-    pub fn call_if(&mut self, invokation: &str, ctx: &mut IrcContext) -> Result<()> {
+    fn call_if<'i>(&mut self, invokation: &'i str, ctx: &mut IrcContext<'_, 'i>) -> Result<()> {
         if let (true, Some(alias)) = self.is_call(invokation) {
-            ctx.alias_used = Some(alias.to_string());
-            ctx.invokation = Some(invokation.to_string());
-            return self.on_call(ctx);
+            ctx.invokation = Some(invokation);
+            ctx.alias_used = Some(alias);
+            self.on_call(ctx)?;
         }
         Ok(())
     }

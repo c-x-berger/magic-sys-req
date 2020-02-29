@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.4"
 irc = "0.13.6"
+lazy_static = "1.4.0"
 rand = "0.7"
 regex = "1"
 tokio = { version = "0.2", features = ["full"] }

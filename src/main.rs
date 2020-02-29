@@ -1,11 +1,8 @@
-use std::{
-    fs,
-    fs::File,
-    io::{prelude::*, BufReader},
-};
+use std::{boxed::Box, fs};
 
 use irc::client::prelude::*;
-use rand::seq::SliceRandom;
+#[macro_use]
+extern crate lazy_static;
 
 mod bot;
 mod command;
@@ -25,12 +22,6 @@ fn without_prefix(message: &str, nick: &str) -> Option<String> {
     None
 }
 
-fn read_jokes() -> std::io::Result<Vec<String>> {
-    let file = File::open("jokes.txt")?;
-    let reader = BufReader::new(file);
-    Ok(reader.lines().map(|l| l.expect("what the?")).collect())
-}
-
 fn main() -> irc::error::Result<()> {
     let paths = fs::read_dir("./confs").unwrap();
     let mut reactor = IrcReactor::new()?;
@@ -45,34 +36,11 @@ fn main() -> irc::error::Result<()> {
 }
 
 fn process_message() -> impl FnMut(&IrcClient, Message) -> irc::error::Result<()> {
-    let jokes = read_jokes().expect("could not read jokes");
-
-    let mut commands = Vec::new();
-
-    let echo_cmd = BotCommand::new(
-        vec!["echo ".to_string(), "repeat ".to_string()],
-        move |ctx| {
-            ctx.get_client().send_privmsg(
-                ctx.get_message().response_target().unwrap(),
-                ctx.command_params_str().unwrap(),
-            )
-        },
-    );
-    commands.push(echo_cmd);
-
-    let joker = BotCommand::new(vec!["tell(?: (me|us))? a joke".to_string()], move |ctx| {
-        let mut rng = rand::thread_rng();
-        ctx.get_client().send_privmsg(
-            ctx.get_message().response_target().unwrap(),
-            &jokes.choose(&mut rng).unwrap(),
-        )
-    });
-    commands.push(joker);
-
-    let dice = BotCommand::new(vec!["[Rr]oll ".to_string()], bot::roll_ndn);
-    commands.push(dice);
-    let slash_me = BotCommand::new(vec![r"/me".to_string()], bot::do_action);
-    commands.push(slash_me);
+    let mut commands: Vec<Box<dyn BotCommand>> = vec![
+        Box::new(bot::Roll {}),
+        Box::new(bot::SlashMe {}),
+        Box::new(bot::joker::Joker {}),
+    ];
 
     return move |client: &IrcClient, message: Message| {
         if let Command::PRIVMSG(_, msg_txt) = &message.command {
